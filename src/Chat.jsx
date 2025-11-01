@@ -1,0 +1,146 @@
+import { useState, useEffect, useRef } from 'react';
+import { Form, Button, InputGroup, Card } from 'react-bootstrap';
+
+function Chat({ messages, setMessages, selectedModel, systemMessages, pulseMessage, pulseInterval, isPulseActive }) {
+  const [inputValue, setInputValue] = useState('');
+  const pulseTimer = useRef(null);
+  const chatPanelRef = useRef(null);
+
+  useEffect(() => {
+    if (chatPanelRef.current) {
+      chatPanelRef.current.scrollTop = chatPanelRef.current.scrollHeight;
+    }
+  }, [messages]);
+
+  const sendMessage = async (messageContent) => {
+    if (!messageContent.trim() || !selectedModel) return;
+
+    const newMessagesWithUser = [...messages, { role: 'user', content: messageContent }];
+    setMessages(newMessagesWithUser);
+
+    const apiMessages = [
+      ...systemMessages.map(msg => ({ role: 'system', content: msg })),
+      ...newMessagesWithUser
+    ];
+
+    try {
+      const response = await fetch('http://localhost:11434/api/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: selectedModel,
+          messages: apiMessages,
+          stream: true,
+        }),
+      });
+
+      setMessages(prev => [...prev, { role: 'assistant', content: '' }]);
+      
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      const processStream = async () => {
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) {
+            break;
+          }
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          
+          buffer = lines.pop(); 
+
+          for (const line of lines) {
+            if (line.trim() === '') continue;
+            try {
+              const responseJson = JSON.parse(line);
+              if (responseJson.message && responseJson.message.content) {
+                const newContent = responseJson.message.content;
+                setMessages(prev => {
+                  const newMessages = [...prev];
+                  const lastMsg = { ...newMessages[newMessages.length - 1] };
+                  lastMsg.content += newContent;
+                  newMessages[newMessages.length - 1] = lastMsg;
+                  return newMessages;
+                });
+              }
+            } catch (e) {
+              console.error("Failed to parse JSON line:", line, e);
+            }
+          }
+        }
+      };
+
+      processStream();
+
+    } catch (e) {
+      console.error("Failed to fetch chat response:", e);
+      setMessages(prev => [...prev, { role: 'assistant', content: `Error: ${e.message}` }]);
+    }
+  };
+
+  const handleSendMessage = () => {
+    sendMessage(inputValue);
+    setInputValue('');
+  };
+
+  useEffect(() => {
+    if (pulseTimer.current) {
+      clearTimeout(pulseTimer.current);
+    }
+
+    if (isPulseActive && pulseInterval > 0 && pulseMessage) {
+      pulseTimer.current = setTimeout(() => {
+        sendMessage(pulseMessage);
+      }, pulseInterval * 1000);
+    }
+
+    return () => {
+      if (pulseTimer.current) {
+        clearTimeout(pulseTimer.current);
+      }
+    };
+  }, [messages, isPulseActive, pulseInterval, pulseMessage]);
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSendMessage();
+    }
+  };
+
+  return (
+    <div className="d-flex flex-column h-100" style={{ backgroundColor: 'var(--bs-dark)', color: 'var(--bs-light)', borderRadius: '10px', padding: '1em' }}>
+      <div ref={chatPanelRef} className="chat-panel" style={{ overflowY: 'auto', flex: '1 1 auto', paddingRight: '10px' }}>
+        {messages.map((msg, index) => (
+          <div key={index} className={`mb-2 ${msg.role === 'user' ? 'text-end' : 'text-start'}`}>
+            <strong>{msg.role === 'user' ? 'You' : 'Agent'}: </strong>
+            <div style={{ whiteSpace: 'pre-wrap' }}>{msg.content}</div>
+          </div>
+        ))}
+      </div>
+      <div style={{ flex: '0 0 auto' }}>
+        <InputGroup className="mt-3">
+          <Form.Control
+            as="textarea"
+            rows={3}
+            value={inputValue}
+            onChange={(e) => setInputValue(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder={selectedModel ? "Type your message..." : "Select a model to start chatting"}
+            disabled={!selectedModel}
+          />
+          <Button onClick={handleSendMessage} disabled={!selectedModel || !inputValue.trim()}>
+            Send
+          </Button>
+        </InputGroup>
+      </div>
+    </div>
+  );
+}
+
+export default Chat;
