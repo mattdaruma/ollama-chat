@@ -1,10 +1,19 @@
 import { useState, useEffect, useRef } from 'react';
-import { Form, Button, InputGroup, Card } from 'react-bootstrap';
+import { Form, Button, InputGroup } from 'react-bootstrap';
 
 function Chat({ messages, setMessages, selectedModel, systemMessages, pulseMessage, pulseInterval, isPulseActive }) {
   const [inputValue, setInputValue] = useState('');
+  const [isStreaming, setIsStreaming] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
   const pulseTimer = useRef(null);
   const chatPanelRef = useRef(null);
+  const inputRef = useRef(null);
+
+  useEffect(() => {
+    if (inputRef.current) {
+      inputRef.current.scrollTop = inputRef.current.scrollHeight;
+    }
+  }, [inputValue]);
 
   useEffect(() => {
     if (chatPanelRef.current) {
@@ -14,6 +23,9 @@ function Chat({ messages, setMessages, selectedModel, systemMessages, pulseMessa
 
   const sendMessage = async (messageContent) => {
     if (!messageContent.trim() || !selectedModel) return;
+
+    if (pulseTimer.current) clearTimeout(pulseTimer.current);
+    setIsStreaming(true);
 
     const newMessagesWithUser = [...messages, { role: 'user', content: messageContent }];
     setMessages(newMessagesWithUser);
@@ -46,6 +58,12 @@ function Chat({ messages, setMessages, selectedModel, systemMessages, pulseMessa
         while (true) {
           const { value, done } = await reader.read();
           if (done) {
+            setIsStreaming(false);
+            if (isPulseActive && pulseInterval > 0 && pulseMessage) {
+              pulseTimer.current = setTimeout(() => {
+                sendMessage(pulseMessage);
+              }, pulseInterval * 1000);
+            }
             break;
           }
 
@@ -80,12 +98,84 @@ function Chat({ messages, setMessages, selectedModel, systemMessages, pulseMessa
     } catch (e) {
       console.error("Failed to fetch chat response:", e);
       setMessages(prev => [...prev, { role: 'assistant', content: `Error: ${e.message}` }]);
+      setIsStreaming(false);
     }
   };
 
   const handleSendMessage = () => {
     sendMessage(inputValue);
     setInputValue('');
+  };
+
+  const handleRobotGenerate = async () => {
+    if (!selectedModel) return;
+
+    if (pulseTimer.current) clearTimeout(pulseTimer.current);
+    setIsGenerating(true);
+    setInputValue(''); // Clear the input field
+
+    const flippedMessages = messages.map(msg => ({
+      ...msg,
+      role: msg.role === 'user' ? 'assistant' : 'user'
+    }));
+
+    const apiMessages = [
+      ...systemMessages.map(msg => ({ role: 'system', content: msg })),
+      ...flippedMessages
+    ];
+
+    try {
+      const response = await fetch('http://localhost:11434/api/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: selectedModel,
+          messages: apiMessages,
+          stream: true,
+        }),
+      });
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      const processStream = async () => {
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) {
+            setIsGenerating(false);
+            break;
+          }
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          
+          buffer = lines.pop();
+
+          for (const line of lines) {
+            if (line.trim() === '') continue;
+            try {
+              const responseJson = JSON.parse(line);
+              if (responseJson.message && responseJson.message.content) {
+                const newContent = responseJson.message.content;
+                setInputValue(prev => prev + newContent);
+              }
+            } catch (e) {
+              console.error("Failed to parse JSON line:", line, e);
+            }
+          }
+        }
+      };
+
+      processStream();
+
+    } catch (e) {
+      console.error("Failed to fetch chat response:", e);
+      setInputValue(`Error: ${e.message}`);
+      setIsGenerating(false);
+    }
   };
 
   useEffect(() => {
@@ -104,7 +194,7 @@ function Chat({ messages, setMessages, selectedModel, systemMessages, pulseMessa
         clearTimeout(pulseTimer.current);
       }
     };
-  }, [messages, isPulseActive, pulseInterval, pulseMessage]);
+  }, [isPulseActive, pulseInterval, pulseMessage]);
 
   const handleKeyDown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -126,16 +216,20 @@ function Chat({ messages, setMessages, selectedModel, systemMessages, pulseMessa
       <div style={{ flex: '0 0 auto' }}>
         <InputGroup className="mt-3">
           <Form.Control
+            ref={inputRef}
             as="textarea"
             rows={3}
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder={selectedModel ? "Type your message..." : "Select a model to start chatting"}
-            disabled={!selectedModel}
+            disabled={!selectedModel || isStreaming || isGenerating}
           />
-          <Button onClick={handleSendMessage} disabled={!selectedModel || !inputValue.trim()}>
+          <Button onClick={handleSendMessage} disabled={!selectedModel || !inputValue.trim() || isStreaming || isGenerating}>
             Send
+          </Button>
+          <Button onClick={handleRobotGenerate} disabled={!selectedModel || isStreaming || isGenerating}>
+            🤖
           </Button>
         </InputGroup>
       </div>
