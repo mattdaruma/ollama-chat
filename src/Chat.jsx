@@ -1,13 +1,47 @@
 import { useState, useEffect, useRef } from 'react';
 import { Form, Button, InputGroup } from 'react-bootstrap';
+import { SendFill, XCircleFill } from 'react-bootstrap-icons';
 
-function Chat({ messages, setMessages, selectedModel, systemMessages, pulseMessage, pulseInterval, isPulseActive }) {
+function Chat({
+  messages,
+  setMessages,
+  selectedModel,
+  isModelLoaded,
+  systemMessages,
+  pulseMessage,
+  pulseInterval,
+  isPulseActive,
+  temperature,
+  numPredict,
+  topK,
+  topP,
+  repeatLastN,
+  repeatPenalty,
+  numCtx,
+  seed,
+  stop,
+  tfsZ,
+  numGpu,
+  mainGpu,
+  lowVram,
+  numThread,
+  numBatch,
+  f16Kv,
+  logitsAll,
+  vocabOnly,
+  useMmap,
+  useMlock,
+  ropeFrequencyBase,
+  ropeFrequencyScale,
+  numKeep,
+}) {
   const [inputValue, setInputValue] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const pulseTimer = useRef(null);
   const chatPanelRef = useRef(null);
   const inputRef = useRef(null);
+  const [activeAbortController, setActiveAbortController] = useState(null);
 
   useEffect(() => {
     if (inputRef.current) {
@@ -26,6 +60,8 @@ function Chat({ messages, setMessages, selectedModel, systemMessages, pulseMessa
 
     if (pulseTimer.current) clearTimeout(pulseTimer.current);
     setIsStreaming(true);
+    const controller = new AbortController();
+    setActiveAbortController(controller);
 
     const newMessagesWithUser = [...messages, { role: 'user', content: messageContent }];
     setMessages(newMessagesWithUser);
@@ -34,6 +70,32 @@ function Chat({ messages, setMessages, selectedModel, systemMessages, pulseMessa
       ...systemMessages.map(msg => ({ role: 'system', content: msg })),
       ...newMessagesWithUser
     ];
+
+    const options = {
+      temperature,
+      num_predict: numPredict,
+      top_k: topK,
+      top_p: topP,
+      repeat_last_n: repeatLastN,
+      repeat_penalty: repeatPenalty,
+      num_ctx: numCtx,
+      seed,
+      stop,
+      tfs_z: tfsZ,
+      num_gpu: numGpu,
+      main_gpu: mainGpu,
+      low_vram: lowVram,
+      num_thread: numThread,
+      num_batch: numBatch,
+      f16_kv: f16Kv,
+      logits_all: logitsAll,
+      vocab_only: vocabOnly,
+      use_mmap: useMmap,
+      use_mlock: useMlock,
+      rope_frequency_base: ropeFrequencyBase,
+      rope_frequency_scale: ropeFrequencyScale,
+      num_keep: numKeep,
+    };
 
     try {
       const response = await fetch('http://localhost:11434/api/chat', {
@@ -45,7 +107,10 @@ function Chat({ messages, setMessages, selectedModel, systemMessages, pulseMessa
           model: selectedModel,
           messages: apiMessages,
           stream: true,
+          keep_alive: -1,
+          options,
         }),
+        signal: controller.signal,
       });
 
       setMessages(prev => [...prev, { role: 'assistant', content: '' }]);
@@ -59,6 +124,7 @@ function Chat({ messages, setMessages, selectedModel, systemMessages, pulseMessa
           const { value, done } = await reader.read();
           if (done) {
             setIsStreaming(false);
+            setActiveAbortController(null);
             if (isPulseActive && pulseInterval > 0 && pulseMessage) {
               pulseTimer.current = setTimeout(() => {
                 sendMessage(pulseMessage);
@@ -96,9 +162,14 @@ function Chat({ messages, setMessages, selectedModel, systemMessages, pulseMessa
       processStream();
 
     } catch (e) {
-      console.error("Failed to fetch chat response:", e);
-      setMessages(prev => [...prev, { role: 'assistant', content: `Error: ${e.message}` }]);
+      if (e.name === 'AbortError') {
+        console.log("Fetch aborted");
+      } else {
+        console.error("Failed to fetch chat response:", e);
+        setMessages(prev => [...prev, { role: 'assistant', content: `Error: ${e.message}` }]);
+      }
       setIsStreaming(false);
+      setActiveAbortController(null);
     }
   };
 
@@ -113,6 +184,8 @@ function Chat({ messages, setMessages, selectedModel, systemMessages, pulseMessa
     if (pulseTimer.current) clearTimeout(pulseTimer.current);
     setIsGenerating(true);
     setInputValue(''); // Clear the input field
+    const controller = new AbortController();
+    setActiveAbortController(controller);
 
     const flippedMessages = messages.map(msg => ({
       ...msg,
@@ -124,6 +197,32 @@ function Chat({ messages, setMessages, selectedModel, systemMessages, pulseMessa
       ...flippedMessages
     ];
 
+    const options = {
+      temperature,
+      num_predict: numPredict,
+      top_k: topK,
+      top_p: topP,
+      repeat_last_n: repeatLastN,
+      repeat_penalty: repeatPenalty,
+      num_ctx: numCtx,
+      seed,
+      stop,
+      tfs_z: tfsZ,
+      num_gpu: numGpu,
+      main_gpu: mainGpu,
+      low_vram: lowVram,
+      num_thread: numThread,
+      num_batch: numBatch,
+      f16_kv: f16Kv,
+      logits_all: logitsAll,
+      vocab_only: vocabOnly,
+      use_mmap: useMmap,
+      use_mlock: useMlock,
+      rope_frequency_base: ropeFrequencyBase,
+      rope_frequency_scale: ropeFrequencyScale,
+      num_keep: numKeep,
+    };
+
     try {
       const response = await fetch('http://localhost:11434/api/chat', {
         method: 'POST',
@@ -134,7 +233,10 @@ function Chat({ messages, setMessages, selectedModel, systemMessages, pulseMessa
           model: selectedModel,
           messages: apiMessages,
           stream: true,
+          keep_alive: -1,
+          options,
         }),
+        signal: controller.signal,
       });
 
       const reader = response.body.getReader();
@@ -146,6 +248,7 @@ function Chat({ messages, setMessages, selectedModel, systemMessages, pulseMessa
           const { value, done } = await reader.read();
           if (done) {
             setIsGenerating(false);
+            setActiveAbortController(null);
             break;
           }
 
@@ -172,29 +275,25 @@ function Chat({ messages, setMessages, selectedModel, systemMessages, pulseMessa
       processStream();
 
     } catch (e) {
-      console.error("Failed to fetch chat response:", e);
-      setInputValue(`Error: ${e.message}`);
+      if (e.name === 'AbortError') {
+        console.log("Fetch aborted");
+      } else {
+        console.error("Failed to fetch chat response:", e);
+        setInputValue(`Error: ${e.message}`);
+      }
       setIsGenerating(false);
+      setActiveAbortController(null);
     }
   };
 
-  useEffect(() => {
-    if (pulseTimer.current) {
-      clearTimeout(pulseTimer.current);
+  const handleCancel = () => {
+    if (activeAbortController) {
+      activeAbortController.abort();
+      setActiveAbortController(null);
     }
-
-    if (isPulseActive && pulseInterval > 0 && pulseMessage) {
-      pulseTimer.current = setTimeout(() => {
-        sendMessage(pulseMessage);
-      }, pulseInterval * 1000);
-    }
-
-    return () => {
-      if (pulseTimer.current) {
-        clearTimeout(pulseTimer.current);
-      }
-    };
-  }, [isPulseActive, pulseInterval, pulseMessage]);
+    setIsStreaming(false);
+    setIsGenerating(false);
+  };
 
   const handleKeyDown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -222,13 +321,19 @@ function Chat({ messages, setMessages, selectedModel, systemMessages, pulseMessa
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder={selectedModel ? "Type your message..." : "Select a model to start chatting"}
-            disabled={!selectedModel || isStreaming || isGenerating}
+            placeholder={selectedModel ? (isModelLoaded ? "Type your message..." : "Load a model to start chatting") : "Select a model to start chatting"}
+            disabled={!selectedModel || !isModelLoaded || isStreaming || isGenerating}
           />
-          <Button onClick={handleSendMessage} disabled={!selectedModel || !inputValue.trim() || isStreaming || isGenerating}>
-            Send
-          </Button>
-          <Button onClick={handleRobotGenerate} disabled={!selectedModel || isStreaming || isGenerating}>
+          {(isStreaming || isGenerating) ? (
+            <Button onClick={handleCancel} variant="danger">
+              <XCircleFill />
+            </Button>
+          ) : (
+            <Button onClick={handleSendMessage} disabled={!selectedModel || !isModelLoaded || !inputValue.trim()}>
+              <SendFill />
+            </Button>
+          )}
+          <Button onClick={handleRobotGenerate} disabled={!selectedModel || !isModelLoaded || isStreaming || isGenerating}>
             🤖
           </Button>
         </InputGroup>

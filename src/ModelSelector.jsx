@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
-import { Form, Spinner, Alert } from 'react-bootstrap';
+import { Form, Spinner, Alert, InputGroup, Button } from 'react-bootstrap';
+import { InfoCircle } from 'react-bootstrap-icons';
 
-function ModelSelector({ onModelChange, selectedModel }) {
+function ModelSelector({ onModelChange, selectedModel, modelDetails, handleShowModelDetails }) {
   const [models, setModels] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -40,7 +41,7 @@ function ModelSelector({ onModelChange, selectedModel }) {
   }
 
   return (
-    <Form.Group controlId="modelSelector">
+    <InputGroup className="mb-3">
       <Form.Select aria-label="Model selector" onChange={(e) => onModelChange(e.target.value)} value={selectedModel}>
         <option value="">Select a model</option>
         {models.map((model) => (
@@ -49,7 +50,10 @@ function ModelSelector({ onModelChange, selectedModel }) {
           </option>
         ))}
       </Form.Select>
-    </Form.Group>
+      <Button variant="outline-secondary" onClick={handleShowModelDetails} disabled={!modelDetails}>
+        <InfoCircle />
+      </Button>
+    </InputGroup>
   );
 }
 

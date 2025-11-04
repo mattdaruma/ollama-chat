@@ -5,7 +5,7 @@ Never attempt to run a shell command on your own, but also freely include them i
 
 # Take it slow.
 
-Just take one action at a time and wait on the user's feedback on the results.  If it is necessary to modify multiple files simultaneously to keep the dev server running and see a difference in testing, that is acceptable.  Be sure to start by mentioning which files you're about to update.  We don't have to stick to one file, but we do stick to one concept at a time.  You might end a task with a suggestion about what might be a good next step, but let the user prompt you to advance on any of the work included in this file or your own ideas.
+Just one action at a time and wait on the user's feedback on the results.  If it is necessary to modify multiple files simultaneously to keep the dev server running and see a difference in testing, that is acceptable.  Be sure to start by mentioning which files you're about to update.  We don't have to stick to one file, but we do stick to one concept at a time.  You might end a task with a suggestion about what might be a good next step, but let the user prompt you to advance on any of the work included in this file or your own ideas.
 
 
 # Avoid Redundancy
@@ -58,13 +58,13 @@ And I don't actually have a use in mind for any of these yet, but maybe in the f
         - Size: Defines how big the gradient's ending shape is (e.g., closest-side, farthest-corner).  I'm not sure what kind of options to provide here, but it seems like a limited set that belongs in a dropdown.  I do not want to require the user to know it and type it out, though an autocomplete may be okay as long as it provides suggestions immediately on being clicked like a dropdown
         - Position: X and Y % inputs for the center of the gradient
         - Color Start: a color picker and a color-stop % (take as number between 0 and 1, presented as percentage)
-        - Color Stop: a color picker and a color-stop % (take as number between 0 and 1, presented as percentage)
+        - Color Stop: a color picker and a color-stop % (take as number between 0 and 1, presented as a percentage)
         - Repeating: a toggle or checkbox that uses the repeating-radial-gradient(... style instead
     - Conic Gradient
         - Angle: defines the starting rotation in degrees
         - Position: X and Y % inputs for the center of the gradient
         - Color Start: a color picker and a color-stop % (take as number between 0 and 1, presented as percentage)
-        - Color Stop: a color picker and a color-stop % (take as number between 0 and 1, presented as percentage)
+        - Color Stop: a color picker and a color-stop % (take as number between 0 and 1, presented as a percentage)
         - Repeating: a toggle or checkbox that uses the repeating-conic-gradient(... style instead
 
 Direction/Shape: For Linear, an angle or direction (e.g., top-left to bottom-right). For Radial, the center position and perhaps the size. For Conic, the start angle.
@@ -83,6 +83,72 @@ The chat history should be deleteable by individual messages, by the entire log,
 The chat history should be able to be saved at any point in time with a name and a timestamp.  It should be possible to save multiple chat logs and reload any of them with a click.  It should also be possible to delete any specific cached log or all cached logs at once.  
 
 
-# Gemini Notex
+# Gemini Notes
 
 This is where you can add hints to your future self, Gemini!
+
+## Shell Commands
+
+I must not run shell commands directly. Instead, I will create a directory in `shell-commands` and write a `.sh` script there. The script should write its output to a file in the same directory, which I can then read to continue my work.
+
+## Project Structure
+
+### `package.json`
+
+- **Purpose**: Defines the project's dependencies, scripts, and metadata.
+- **Key Dependencies**: `react`, `react-bootstrap`, `vite`.
+- **Scripts**: `dev` (starts dev server), `build`, `lint`, `preview`.
+
+### `src/App.jsx`
+
+-   **File Path**: `src/App.jsx`
+-   **Purpose**: The main application component. It manages the overall state of the application and orchestrates the different components.
+-   **Inputs (Props)**: None.
+-   **Outputs**: Renders the main layout, including the settings panel and the chat interface. It passes down state and state-updater functions to its children components.
+
+### `src/Chat.jsx`
+
+-   **File Path**: `src/Chat.jsx`
+-   **Purpose**: Handles the chat interface, including displaying messages, sending new messages to the Ollama API, and handling streaming responses.
+-   **Inputs (Props)**: `messages`, `setMessages`, `selectedModel`, `systemMessages`, `pulseMessage`, `pulseInterval`, `isPulseActive`.
+-   **Outputs**: Renders the chat history and the message input form. Interacts with the Ollama API.
+
+### `src/ModelSelector.jsx`
+
+-   **File Path**: `src/ModelSelector.jsx`
+-   **Purpose**: Fetches and displays a list of available Ollama models in a dropdown menu.
+-   **Inputs (Props)**: `onModelChange`, `selectedModel`.
+-   **Outputs**: A dropdown menu of models. When a model is selected, it calls the `onModelChange` function passed in its props.
+
+### `src/Pulse.jsx`
+
+-   **File Path**: `src/Pulse.jsx`
+-   **Purpose**: Allows the user to configure a "pulse" message that is sent automatically at a specified interval.
+-   **Inputs (Props)**: `pulseMessage`, `setPulseMessage`, `pulseInterval`, `setPulseInterval`, `isPulseActive`, `setIsPulseActive`.
+-   **Outputs**: Input fields for the pulse message and interval, and a switch to activate/deactivate the pulse.
+
+### `src/Settings.jsx`
+
+-   **File Path**: `src/Settings.jsx`
+-   **Purpose**: Provides buttons for session management, such as saving, loading, and clearing sessions and chat history.
+-   **Inputs (Props)**: `saveSession`, `loadSession`, `clearChatHistory`, `clearSession`.
+-   **Outputs**: Renders a group of buttons that trigger the functions passed in as props.
+
+### `src/SystemMessages.jsx`
+
+-   **File Path**: `src/SystemMessages.jsx`
+-   **Purpose**: Allows the user to add, edit, and remove system messages that are sent to the Ollama API with each request.
+-   **Inputs (Props)**: `systemMessages`, `setSystemMessages`.
+-   **Outputs**: A list of text areas for editing system messages, with buttons to add and remove messages.
+
+### `src/main.jsx`
+
+-   **File Path**: `src/main.jsx`
+-   **Purpose**: The entry point of the React application.
+-   **Inputs**: None.
+-   **Outputs**: Renders the `App` component to the DOM.
+
+### CSS and Assets
+
+-   **`src/App.css`**, **`src/index.css`**: Provide styling for the application.
+-   **`src/assets/react.svg`**: The React logo, used as an asset.
