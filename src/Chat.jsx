@@ -3,6 +3,7 @@ import { Form, Button, InputGroup } from 'react-bootstrap';
 import { SendFill, XCircleFill } from 'react-bootstrap-icons';
 
 function Chat({
+  config,
   messages,
   setMessages,
   selectedModel,
@@ -56,7 +57,7 @@ function Chat({
   }, [messages]);
 
   const sendMessage = async (messageContent) => {
-    if (!messageContent.trim() || !selectedModel) return;
+    if (!messageContent.trim() || !selectedModel || !config) return;
 
     if (pulseTimer.current) clearTimeout(pulseTimer.current);
     setIsStreaming(true);
@@ -98,7 +99,7 @@ function Chat({
     };
 
     try {
-      const response = await fetch('http://localhost:11434/api/chat', {
+      const response = await fetch(`${config.api.baseUrl}${config.api.endpoints.chat}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -179,7 +180,7 @@ function Chat({
   };
 
   const handleRobotGenerate = async () => {
-    if (!selectedModel) return;
+    if (!selectedModel || !config) return;
 
     if (pulseTimer.current) clearTimeout(pulseTimer.current);
     setIsGenerating(true);
@@ -224,7 +225,7 @@ function Chat({
     };
 
     try {
-      const response = await fetch('http://localhost:11434/api/chat', {
+      const response = await fetch(`${config.api.baseUrl}${config.api.endpoints.chat}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -289,7 +290,6 @@ function Chat({
   const handleCancel = () => {
     if (activeAbortController) {
       activeAbortController.abort();
-      setActiveAbortController(null);
     }
     setIsStreaming(false);
     setIsGenerating(false);

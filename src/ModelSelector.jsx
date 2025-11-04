@@ -2,15 +2,16 @@ import { useState, useEffect } from 'react';
 import { Form, Spinner, Alert, InputGroup, Button } from 'react-bootstrap';
 import { InfoCircle } from 'react-bootstrap-icons';
 
-function ModelSelector({ onModelChange, selectedModel, modelDetails, handleShowModelDetails }) {
+function ModelSelector({ config, onModelChange, selectedModel, modelDetails, handleShowModelDetails }) {
   const [models, setModels] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   useEffect(() => {
     const fetchModels = async () => {
+      if (!config) return;
       try {
-        const response = await fetch('http://localhost:11434/api/tags');
+        const response = await fetch(`${config.api.baseUrl}${config.api.endpoints.tags}`);
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
         }
@@ -28,7 +29,7 @@ function ModelSelector({ onModelChange, selectedModel, modelDetails, handleShowM
     };
 
     fetchModels();
-  }, []);
+  }, [config]);
 
   if (loading) {
     return <Spinner animation="border" role="status">

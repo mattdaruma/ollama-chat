@@ -60,7 +60,7 @@ function GenerateSettings({
     return defaultValue;
   };
 
-  const maxNumCtx = getMaxValue('llama.context_length', 2048);
+  const maxNumCtx = modelDetails ? parseInt(getMaxValue('llama.context_length', 2048), 10) || 2048 : 0;
 
   const renderPopover = (id, content) => (
     <Popover id={`popover-${id}`}>

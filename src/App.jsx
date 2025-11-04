@@ -45,6 +45,7 @@ function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [modelDetails, setModelDetails] = useState(null);
   const [showModelDetailsModal, setShowModelDetailsModal] = useState(false);
+  const [config, setConfig] = useState(null);
 
   // Generate Parameters
   const [temperature, setTemperature] = useState(() => {
@@ -80,7 +81,7 @@ function App() {
   const [numCtx, setNumCtx] = useState(() => {
     const saved = localStorage.getItem('ollama-chat-settings');
     const initialValue = JSON.parse(saved);
-    return initialValue?.numCtx || 2048;
+    return initialValue?.numCtx || 0;
   });
   const [seed, setSeed] = useState(() => {
     const saved = localStorage.getItem('ollama-chat-settings');
@@ -164,13 +165,27 @@ function App() {
   });
 
   useEffect(() => {
+    const fetchConfig = async () => {
+      try {
+        const response = await fetch('/config.json');
+        const data = await response.json();
+        setConfig(data);
+      } catch (e) {
+        console.error("Failed to fetch config:", e);
+      }
+    };
+
+    fetchConfig();
+  }, []);
+
+  useEffect(() => {
     const fetchModelDetails = async () => {
-      if (!selectedModel) {
+      if (!selectedModel || !config) {
         setModelDetails(null);
         return;
       }
       try {
-        const response = await fetch('http://localhost:11434/api/show', {
+        const response = await fetch(`${config.api.baseUrl}${config.api.endpoints.show}`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -182,7 +197,14 @@ function App() {
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
         }
-        const data = await response.json();
+        let data = await response.json();
+
+        // Apply model overrides
+        if (config.model_overrides && config.model_overrides[selectedModel]) {
+          data.model_info = { ...data.model_info, ...config.model_overrides[selectedModel] };
+        }
+
+        console.log('Model Details:', data); // for debugging
         setModelDetails(data);
       } catch (e) {
         console.error("Failed to fetch model details:", e);
@@ -191,19 +213,19 @@ function App() {
     };
 
     fetchModelDetails();
-  }, [selectedModel]);
+  }, [selectedModel, config]);
 
   useEffect(() => {
     // Set default generate parameters based on modelDetails when modelDetails changes
-    if (modelDetails) {
+    if (selectedModel && modelDetails) {
       const getModelInfoValue = (key, defaultValue) => {
         return modelDetails.model_info && modelDetails.model_info[key] !== undefined
           ? modelDetails.model_info[key]
           : defaultValue;
       };
 
-      const maxNumCtx = getModelInfoValue('llama.context_length', 2048);
-      setNumCtx(prevNumCtx => prevNumCtx === 2048 ? maxNumCtx : prevNumCtx); // Only set if still default
+      const maxNumCtx = parseInt(getModelInfoValue('llama.context_length', 2048), 10) || 2048;
+      setNumCtx(Math.max(2048, maxNumCtx - 2048));
 
       // Parse parameters from modelfile and set them as defaults if not already set by user
       const parseModelfileParameters = (modelfileContent) => {
@@ -230,7 +252,6 @@ function App() {
         if (modelfileParams.top_p !== undefined && topP === 0.9) setTopP(modelfileParams.top_p);
         if (modelfileParams.repeat_last_n !== undefined && repeatLastN === 64) setRepeatLastN(modelfileParams.repeat_last_n);
         if (modelfileParams.repeat_penalty !== undefined && repeatPenalty === 1.1) setRepeatPenalty(modelfileParams.repeat_penalty);
-        if (modelfileParams.num_ctx !== undefined && numCtx === 2048) setNumCtx(modelfileParams.num_ctx);
         if (modelfileParams.seed !== undefined && seed === 0) setSeed(modelfileParams.seed);
         if (modelfileParams.stop !== undefined && stop.length === 0) setStop(Array.isArray(modelfileParams.stop) ? modelfileParams.stop : [modelfileParams.stop]);
         if (modelfileParams.tfs_z !== undefined && tfsZ === 1) setTfsZ(modelfileParams.tfs_z);
@@ -248,8 +269,10 @@ function App() {
         if (modelfileParams.rope_frequency_scale !== undefined && ropeFrequencyScale === 0) setRopeFrequencyScale(modelfileParams.rope_frequency_scale);
         if (modelfileParams.num_keep !== undefined && numKeep === 0) setNumKeep(modelfileParams.num_keep);
       }
+    } else {
+      setNumCtx(0);
     }
-  }, [modelDetails]);
+  }, [selectedModel, modelDetails]);
 
   useEffect(() => {
     const settings = {
@@ -358,6 +381,7 @@ function App() {
         alignItems: 'center',
       }}>
         <ModelLoader
+          config={config}
           selectedModel={selectedModel}
           isModelLoaded={isModelLoaded}
           setIsModelLoaded={setIsModelLoaded}
@@ -381,6 +405,7 @@ function App() {
             clearSession={clearSession}
           />
           <ModelSelector
+            config={config}
             selectedModel={selectedModel}
             onModelChange={setSelectedModel}
             modelDetails={modelDetails}
@@ -452,8 +477,10 @@ function App() {
             setIsPulseActive={setIsPulseActive}
           />
           <SystemMessages
+            config={config}
             systemMessages={systemMessages}
             setSystemMessages={setSystemMessages}
+            model={selectedModel}
           />
         </Offcanvas.Body>
       </Offcanvas>
@@ -467,6 +494,7 @@ function App() {
 
       <div style={{ position: 'fixed', top: '5em', right: '5em', bottom: '5em', left: '5em' }}>
         <Chat
+          config={config}
           messages={messages}
           setMessages={setMessages}
           selectedModel={selectedModel}

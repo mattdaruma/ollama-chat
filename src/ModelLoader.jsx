@@ -2,18 +2,18 @@ import { useState, useEffect } from 'react';
 import { Button, Spinner } from 'react-bootstrap';
 import { CloudDownload, CloudSlash } from 'react-bootstrap-icons';
 
-function ModelLoader({ selectedModel, isModelLoaded, setIsModelLoaded, modelDetails }) {
+function ModelLoader({ config, selectedModel, isModelLoaded, setIsModelLoaded, modelDetails }) {
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     const checkModelStatus = async () => {
-      if (!selectedModel) {
+      if (!selectedModel || !config) {
         setIsModelLoaded(false);
         return;
       }
       setIsLoading(true);
       try {
-        const response = await fetch('http://localhost:11434/api/ps');
+        const response = await fetch(`${config.api.baseUrl}${config.api.endpoints.ps}`);
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
         }
@@ -50,13 +50,13 @@ function ModelLoader({ selectedModel, isModelLoaded, setIsModelLoaded, modelDeta
   };
 
   const loadModel = async () => {
-    if (!selectedModel || !modelDetails) return;
+    if (!selectedModel || !modelDetails || !config) return;
     setIsLoading(true);
 
     const parsedParameters = parseParameters(modelDetails.parameters);
 
     try {
-      await fetch('http://localhost:11434/api/generate', {
+      await fetch(`${config.api.baseUrl}${config.api.endpoints.generate}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -78,10 +78,10 @@ function ModelLoader({ selectedModel, isModelLoaded, setIsModelLoaded, modelDeta
   };
 
   const unloadModel = async () => {
-    if (!selectedModel) return;
+    if (!selectedModel || !config) return;
     setIsLoading(true);
     try {
-      await fetch('http://localhost:11434/api/generate', {
+      await fetch(`${config.api.baseUrl}${config.api.endpoints.generate}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
