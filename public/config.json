@@ -1,0 +1,18 @@
+{
+  "api": {
+    "baseUrl": "http://localhost:11434/api",
+    "endpoints": {
+      "chat": "/chat",
+      "show": "/show",
+      "tags": "/tags",
+      "ps": "/ps",
+      "generate": "/generate",
+      "tokenize": "/generate"
+    }
+  },
+  "model_overrides": {
+    "nchapman/mn-12b-mag-mell-r1:12b": {
+      "llama.context_length": 32768
+    }
+  }
+}

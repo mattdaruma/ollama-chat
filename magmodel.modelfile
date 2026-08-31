@@ -1,0 +1,3 @@
+FROM nchapman/mn-12b-mag-mell-r1:12b
+PARAMETER num_ctx 32768
+PARAMETER num_predict 2048

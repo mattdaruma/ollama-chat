@@ -1,0 +1,61 @@
+import { useState, useEffect } from 'react';
+import { Form, Spinner, Alert, InputGroup, Button } from 'react-bootstrap';
+import { InfoCircle } from 'react-bootstrap-icons';
+
+function ModelSelector({ config, onModelChange, selectedModel, modelDetails, handleShowModelDetails }) {
+  const [models, setModels] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    const fetchModels = async () => {
+      if (!config) return;
+      try {
+        const response = await fetch(`${config.api.baseUrl}${config.api.endpoints.tags}`);
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const data = await response.json();
+        if (data.models && data.models.length > 0) {
+          setModels(data.models);
+        } else {
+          setError('No models found.');
+        }
+      } catch (e) {
+        setError(`Failed to fetch models: ${e.message}`);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchModels();
+  }, [config]);
+
+  if (loading) {
+    return <Spinner animation="border" role="status">
+      <span className="visually-hidden">Loading...</span>
+    </Spinner>;
+  }
+
+  if (error) {
+    return <Alert variant="danger">{error}</Alert>;
+  }
+
+  return (
+    <InputGroup className="mb-3">
+      <Form.Select aria-label="Model selector" onChange={(e) => onModelChange(e.target.value)} value={selectedModel}>
+        <option value="">Select a model</option>
+        {models.map((model) => (
+          <option key={model.name} value={model.name}>
+            {model.name}
+          </option>
+        ))}
+      </Form.Select>
+      <Button variant="outline-secondary" onClick={handleShowModelDetails} disabled={!modelDetails}>
+        <InfoCircle />
+      </Button>
+    </InputGroup>
+  );
+}
+
+export default ModelSelector;
